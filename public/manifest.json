@@ -1,0 +1,22 @@
+{
+  "name": "Drift — Boston Food Truck",
+  "short_name": "Drift",
+  "description": "Manage your Drift food truck location and menu.",
+  "start_url": "/admin/today",
+  "display": "standalone",
+  "background_color": "#1A1410",
+  "theme_color": "#A8522B",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
