@@ -138,8 +138,9 @@ performance tables are invisible to it — no risk of leaking revenue.
 - **`units_sold` null vs 0:** null = not tracked (ignored for top seller); 0 = explicitly none.
 - **Archived item:** excluded from today's menu (customer + owner); still present in history via the
   snapshot fields.
-- **Backfilling a day with no location row** (owner forgot to post): editing *existing* days is
-  in scope; creating a brand-new past-day record from History is a nice-to-have, deferred.
+- **Only posted days are logged.** A day exists in History only if a location was posted for it.
+  Existing days are editable; there is no way to create a past-day record that was never posted. A
+  day the owner forgot to post simply has no record — that is intended, not a gap to fill.
 
 ## Testing
 
@@ -155,4 +156,4 @@ performance tables are invisible to it — no risk of leaking revenue.
 
 - Automatic sales capture, ordering, payments (unchanged from original spec).
 - Charts / trends across days (the data model supports it later; not built now).
-- Creating brand-new past-day records from History (only editing existing days).
+- Creating past-day records that were never posted (only days with a posted location are logged).
