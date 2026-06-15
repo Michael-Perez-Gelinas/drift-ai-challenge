@@ -7,11 +7,19 @@ import { PrimaryButton } from "@/components/admin/PrimaryButton";
 import { SecondaryButton } from "@/components/admin/SecondaryButton";
 import { updateDayAction } from "@/app/admin/actions";
 
+export type DayNumbersItem = {
+  menu_item_id: string | null;
+  item_name: string;
+  units_sold: number | null;
+};
+
 type DayNumbersFormProps = {
   date: string;
   defaultRevenueCents: number | null;
   defaultCustomerCount: number | null;
   defaultEndOfDayNote: string | null;
+  /** The day's logged items. Only those with a menu_item_id can have units edited. */
+  items: DayNumbersItem[];
 };
 
 /** Cents → a clean dollar string for the input ("4200" → "42", "4250" → "42.50"). */
@@ -39,17 +47,28 @@ function toCount(value: string): number | null {
   return n;
 }
 
+function initialUnits(items: DayNumbersItem[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const item of items) {
+    if (item.menu_item_id) {
+      out[item.menu_item_id] = item.units_sold === null ? "" : String(item.units_sold);
+    }
+  }
+  return out;
+}
+
 /**
  * Edits the wrap-up numbers for one logged day: revenue (dollars → cents),
- * customer count, and the end-of-day note. Per-item units stay read-only —
- * the day's item snapshots don't carry menu_item ids, so they can't be re-keyed
- * here without an extra fetch. Calls updateDayAction, then refreshes the route.
+ * customer count, end-of-day note, and per-item units sold. Items whose menu
+ * row was deleted (no menu_item_id) are shown read-only. Calls updateDayAction,
+ * then refreshes the route.
  */
 export function DayNumbersForm({
   date,
   defaultRevenueCents,
   defaultCustomerCount,
   defaultEndOfDayNote,
+  items,
 }: DayNumbersFormProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -58,21 +77,32 @@ export function DayNumbersForm({
     defaultCustomerCount === null ? "" : String(defaultCustomerCount)
   );
   const [note, setNote] = useState(defaultEndOfDayNote ?? "");
+  const [units, setUnits] = useState<Record<string, string>>(() => initialUnits(items));
   const [isPending, startTransition] = useTransition();
+
+  const editableItems = items.filter((i) => i.menu_item_id);
 
   function reset() {
     setRevenue(centsToDollars(defaultRevenueCents));
     setCustomers(defaultCustomerCount === null ? "" : String(defaultCustomerCount));
     setNote(defaultEndOfDayNote ?? "");
+    setUnits(initialUnits(items));
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const perItemUnits = editableItems
+      .map((item) => ({ menuItemId: item.menu_item_id as string, units: toCount(units[item.menu_item_id as string] ?? "") }))
+      .filter(
+        (entry): entry is { menuItemId: string; units: number } => entry.units !== null
+      );
+
     startTransition(async () => {
       await updateDayAction(date, {
         revenueCents: dollarsToCents(revenue),
         customerCount: toCount(customers),
         endOfDayNote: note.trim() || null,
+        perItemUnits: perItemUnits.length ? perItemUnits : undefined,
       });
       router.refresh();
       setEditing(false);
@@ -105,6 +135,36 @@ export function DayNumbersForm({
         value={customers}
         onChange={(e) => setCustomers(e.target.value)}
       />
+
+      {editableItems.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-text-secondary">Units sold</span>
+          <ul className="flex flex-col">
+            {editableItems.map((item) => {
+              const id = item.menu_item_id as string;
+              return (
+                <li
+                  key={id}
+                  className="flex items-center justify-between gap-4 border-b border-border-default py-2 last:border-b-0"
+                >
+                  <span className="text-sm text-text-primary">{item.item_name}</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="—"
+                    value={units[id] ?? ""}
+                    onChange={(e) =>
+                      setUnits((prev) => ({ ...prev, [id]: e.target.value }))
+                    }
+                    aria-label={`${item.item_name} units sold`}
+                    className="h-10 w-20 rounded-card border border-border-default bg-surface-raised px-3 text-right text-base text-text-primary placeholder:text-text-muted focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus/30"
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       <Field
         as="textarea"
         label="End-of-day note"

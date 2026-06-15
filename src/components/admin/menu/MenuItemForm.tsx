@@ -93,18 +93,23 @@ export function MenuItemForm({
       />
 
       <Field label="Category" hint="Groups the item on the board.">
-        <input
-          list={CATEGORY_LIST_ID}
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Tacos"
-          className="w-full rounded-card border border-border-default bg-surface-raised px-4 py-3 text-base text-text-primary placeholder:text-text-muted transition-colors duration-fast focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus/30"
-        />
-        <datalist id={CATEGORY_LIST_ID}>
-          {CATEGORY_SUGGESTIONS.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
+        {(controlId) => (
+          <>
+            <input
+              id={controlId}
+              list={CATEGORY_LIST_ID}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="Tacos"
+              className="w-full rounded-card border border-border-default bg-surface-raised px-4 py-3 text-base text-text-primary placeholder:text-text-muted transition-colors duration-fast focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus/30"
+            />
+            <datalist id={CATEGORY_LIST_ID}>
+              {CATEGORY_SUGGESTIONS.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </>
+        )}
       </Field>
 
       <Field

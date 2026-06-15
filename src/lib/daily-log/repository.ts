@@ -20,7 +20,7 @@ export type DayDetail = {
   revenue_cents: number | null;
   customer_count: number | null;
   end_of_day_note: string | null;
-  items: { item_name: string; item_price: number; units_sold: number | null; was_sold_out: boolean }[];
+  items: { menu_item_id: string | null; item_name: string; item_price: number; units_sold: number | null; was_sold_out: boolean }[];
 };
 
 async function locationIdForDate(db: DB, date: string): Promise<string | null> {
@@ -35,23 +35,31 @@ export async function postLocation(
 ): Promise<{ id: string }> {
   const existing = await locationIdForDate(db, input.date);
 
+  // Editing an existing day must NOT touch is_open — otherwise tweaking the
+  // address/note would silently reopen a truck the owner marked closed.
+  if (existing !== null) {
+    const { error } = await db
+      .from("locations")
+      .update({ address: input.address, note: input.note ?? null })
+      .eq("date", input.date);
+    if (error) throw error;
+    return { id: existing };
+  }
+
+  // First post of the day: create the row (open by default) and reset sold-out.
   const { data, error } = await db
     .from("locations")
-    .upsert(
-      { date: input.date, address: input.address, note: input.note ?? null, is_open: true },
-      { onConflict: "date" }
-    )
+    .insert({ date: input.date, address: input.address, note: input.note ?? null, is_open: true })
     .select("id")
     .single();
   if (error) throw error;
 
-  if (existing === null) {
-    const { error: resetError } = await db
-      .from("menu_items")
-      .update({ is_sold_out: false })
-      .neq("id", NIL_UUID);
-    if (resetError) throw resetError;
-  }
+  const { error: resetError } = await db
+    .from("menu_items")
+    .update({ is_sold_out: false })
+    .neq("id", NIL_UUID);
+  if (resetError) throw resetError;
+
   return { id: data!.id };
 }
 
@@ -177,7 +185,7 @@ export async function getDay(db: DB, date: string): Promise<DayDetail | null> {
 
   const { data: items } = await db
     .from("daily_item_stats")
-    .select("item_name, item_price, units_sold, was_sold_out")
+    .select("menu_item_id, item_name, item_price, units_sold, was_sold_out")
     .eq("location_id", loc.id);
 
   return {

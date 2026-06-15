@@ -28,6 +28,7 @@ async function geocode(address: string): Promise<GeocodeResult> {
     )}&limit=1`;
     const res = await fetch(url, {
       headers: { "User-Agent": "drift-app" },
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
 
@@ -63,13 +64,14 @@ export async function postLocationAction(input: {
 
   await postLocation(db, { date, address: input.address, note: input.note ?? null });
 
+  // Always re-sync lat/lng to the current address. On a failed geocode (e.g. an
+  // edit to an unresolvable address) clear them rather than leaving the previous
+  // address's coordinates pointing customers to the wrong spot.
   const coords = await geocode(input.address);
-  if (coords) {
-    await db
-      .from("locations")
-      .update({ lat: coords.lat, lng: coords.lng })
-      .eq("date", date);
-  }
+  await db
+    .from("locations")
+    .update({ lat: coords?.lat ?? null, lng: coords?.lng ?? null })
+    .eq("date", date);
 
   revalidatePath("/admin/today");
 }

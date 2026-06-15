@@ -23,29 +23,32 @@ export default async function TodayPage() {
   const db = createServiceClient();
   const date = todayISO();
 
-  const { data: location } = await db
+  const { data: location, error: locationError } = await db
     .from("locations")
     .select("id, address, note, is_open")
     .eq("date", date)
     .maybeSingle();
+  if (locationError) throw locationError;
 
-  const { data: menuItems } = await db
+  const { data: menuItems, error: menuError } = await db
     .from("menu_items")
     .select("id, name, category, is_sold_out, sort_order")
     .eq("is_archived", false)
     .order("category", { ascending: true })
     .order("sort_order", { ascending: true });
+  if (menuError) throw menuError;
 
   // Wrap-up prefill comes from today's daily_performance, joined via location id.
   let performance:
     | { revenue_cents: number | null; customer_count: number | null; end_of_day_note: string | null; wrapped_at: string | null }
     | null = null;
   if (location) {
-    const { data: perf } = await db
+    const { data: perf, error: perfError } = await db
       .from("daily_performance")
       .select("revenue_cents, customer_count, end_of_day_note, wrapped_at")
       .eq("location_id", location.id)
       .maybeSingle();
+    if (perfError) throw perfError;
     performance = perf ?? null;
   }
 
@@ -101,6 +104,7 @@ export default async function TodayPage() {
 
         <div className="border-t border-border-default pt-2">
           <WrapUpSection
+            key={performance?.wrapped_at ?? "unwrapped"}
             items={wrapUpItems}
             defaultRevenueCents={performance?.revenue_cents ?? null}
             defaultCustomerCount={performance?.customer_count ?? null}

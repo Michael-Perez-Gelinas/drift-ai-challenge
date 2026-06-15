@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Caveat, DM_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "Drift — Boston Food Truck",
   description: "Find Drift today. Fresh Mexican street food, moving around Boston.",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
   themeColor: "#A8522B",
 };
 

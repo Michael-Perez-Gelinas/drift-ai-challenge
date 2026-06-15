@@ -69,10 +69,10 @@ export function WrapUpSection({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const perItemUnits = items
-      .map((item) => ({ menuItemId: item.id, value: units[item.id] }))
-      .filter((entry) => entry.value != null && entry.value.trim() !== "")
-      .map((entry) => ({ menuItemId: entry.menuItemId, units: toCount(entry.value!) ?? 0 }))
-      .filter((entry) => entry.units >= 0);
+      .map((item) => ({ menuItemId: item.id, units: toCount(units[item.id] ?? "") }))
+      .filter(
+        (entry): entry is { menuItemId: string; units: number } => entry.units !== null
+      );
 
     startTransition(async () => {
       await wrapUpDayAction({

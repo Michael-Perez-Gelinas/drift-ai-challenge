@@ -79,8 +79,8 @@ export function PostedLocation({ address, note, isOpen }: PostedLocationProps) {
         <span
           className={
             isOpen
-              ? "inline-flex items-center gap-2 text-sm font-medium text-status-open-bg"
-              : "inline-flex items-center gap-2 text-sm font-medium text-status-closed-bg"
+              ? "inline-flex items-center gap-2 text-sm font-medium text-text-primary"
+              : "inline-flex items-center gap-2 text-sm font-medium text-text-muted"
           }
         >
           <span

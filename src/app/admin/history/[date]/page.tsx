@@ -179,10 +179,14 @@ export default async function HistoryDayPage({
       {/* Edit */}
       <section className="border-t border-border-default py-5">
         <DayNumbersForm
+          key={`${day.revenue_cents}|${day.customer_count}|${day.end_of_day_note}|${day.items
+            .map((i) => `${i.menu_item_id}:${i.units_sold}`)
+            .join(",")}`}
           date={day.date}
           defaultRevenueCents={day.revenue_cents}
           defaultCustomerCount={day.customer_count}
           defaultEndOfDayNote={day.end_of_day_note}
+          items={day.items}
         />
       </section>
     </>

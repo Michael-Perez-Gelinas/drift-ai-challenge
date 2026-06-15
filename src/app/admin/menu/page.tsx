@@ -9,7 +9,7 @@ const UNCATEGORIZED = "Other";
 
 export default async function MenuPage() {
   const db = createServiceClient();
-  const { data } = await db
+  const { data, error } = await db
     .from("menu_items")
     .select(
       "id, name, description, price, category, image_url, is_sold_out, sort_order, is_archived"
@@ -17,6 +17,7 @@ export default async function MenuPage() {
     .eq("is_archived", false)
     .order("category", { ascending: true })
     .order("sort_order", { ascending: true });
+  if (error) throw error;
 
   const items: MenuItem[] = (data ?? []).map((row) => ({
     id: row.id,

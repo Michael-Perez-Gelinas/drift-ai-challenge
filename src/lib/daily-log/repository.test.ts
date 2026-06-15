@@ -48,6 +48,22 @@ describe("postLocation", () => {
     const { data: items } = await service.from("menu_items").select("is_sold_out");
     expect(items!.every((i) => i.is_sold_out === false)).toBe(true);
   });
+
+  it("editing a closed day updates address/note without reopening it", async () => {
+    await postLocation(service, { date: DAY, address: "South End", note: null });
+    await service.from("locations").update({ is_open: false }).eq("date", DAY);
+
+    await postLocation(service, { date: DAY, address: "Seaport", note: "moved" });
+
+    const { data: loc } = await service
+      .from("locations")
+      .select("address, note, is_open")
+      .eq("date", DAY)
+      .single();
+    expect(loc!.address).toBe("Seaport");
+    expect(loc!.note).toBe("moved");
+    expect(loc!.is_open).toBe(false); // stays closed — edit must not reopen
+  });
 });
 
 describe("toggleSoldOut", () => {
