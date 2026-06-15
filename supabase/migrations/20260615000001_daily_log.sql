@@ -6,8 +6,13 @@
 -- performance and per-item history that anon must never be able to read.
 
 -- 1. Fix public read: RLS policies need the base table GRANT to take effect.
+--    This project doesn't apply Supabase's default table privileges, so the
+--    roles must be granted explicitly — including service_role, which does all
+--    server-side writes.
 grant select on public.locations to anon, authenticated;
 grant select on public.menu_items to anon, authenticated;
+grant all on public.locations to service_role;
+grant all on public.menu_items to service_role;
 
 -- 2. Soft delete for menu items so historical stats keep resolving.
 alter table menu_items
@@ -41,5 +46,7 @@ create table daily_item_stats (
 --    in depth in case platform default privileges granted anon access.
 alter table daily_performance enable row level security;
 alter table daily_item_stats enable row level security;
+grant all on public.daily_performance to service_role;
+grant all on public.daily_item_stats to service_role;
 revoke all on public.daily_performance from anon;
 revoke all on public.daily_item_stats from anon;
