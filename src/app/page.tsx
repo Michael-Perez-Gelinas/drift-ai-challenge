@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/customer/SiteHeader";
 import { CustomerMap } from "@/components/customer/CustomerMap";
 import { TodayMenu, type TodayMenuItem } from "@/components/customer/TodayMenu";
 import { LiveRefresh } from "@/components/customer/LiveRefresh";
+import { HandDrawnDivider } from "@/components/HandDrawnDivider";
 
 // Reads the DB on every request — public, always-fresh.
 export const dynamic = "force-dynamic";
@@ -23,7 +24,6 @@ export default async function Home() {
   const db = createAnonClient();
   const date = todayISO();
 
-  // Today's location. A missing row is a valid "not posted" state, not an error.
   const { data: location, error: locationError } = await db
     .from("locations")
     .select("address, note, lat, lng, is_open")
@@ -31,7 +31,6 @@ export default async function Home() {
     .maybeSingle();
   if (locationError) throw locationError;
 
-  // The menu — same data the owner curates.
   const { data: menuData, error: menuError } = await db
     .from("menu_items")
     .select("name, description, price, category, is_sold_out")
@@ -44,63 +43,71 @@ export default async function Home() {
 
   const isPosted = location != null;
   const isOpen = isPosted && location.is_open;
-  const hasCoords =
-    isPosted && location.lat != null && location.lng != null;
+  const hasCoords = isPosted && location.lat != null && location.lng != null;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-12 px-5 py-12 sm:px-8 sm:py-16">
+    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col gap-16 px-6 py-14 sm:py-20">
       <SiteHeader />
 
-      <section className="flex flex-col gap-4">
-        <p className="text-sm uppercase tracking-[0.18em] text-text-muted">
+      {/* Today's status — the reason regulars are here. */}
+      <section className="flex flex-col gap-5">
+        <p className="text-xs uppercase tracking-[0.28em] text-text-muted">
           {friendlyToday()}
         </p>
 
-        {/* --- State 1: not posted yet --------------------------------------- */}
         {!isPosted && (
-          <div className="flex flex-col gap-3">
-            <h1 className="font-display text-3xl leading-none text-text-primary sm:text-4xl">
+          <>
+            <h1 className="font-display text-4xl leading-[0.9] text-text-primary">
               We&apos;re not out yet today
             </h1>
-            <p className="text-lg text-text-secondary">
-              Check back soon — we&apos;ll post our spot the moment we&apos;re
-              rolling. Here&apos;s what&apos;s usually on.
+            <p className="text-lg leading-relaxed text-text-secondary">
+              Check back soon — we&apos;ll drop our spot here the moment
+              we&apos;re rolling. Here&apos;s what&apos;s usually on.
             </p>
-          </div>
+          </>
         )}
 
-        {/* --- State 2: closed ---------------------------------------------- */}
         {isPosted && !isOpen && (
-          <div className="flex flex-col gap-3">
-            <h1 className="font-display text-3xl leading-none text-text-primary sm:text-4xl">
+          <>
+            <h1 className="font-display text-4xl leading-[0.9] text-text-primary">
               Closed today
             </h1>
             {location.note && (
-              <p className="text-lg text-text-secondary">{location.note}</p>
+              <p className="text-lg leading-relaxed text-text-secondary">
+                {location.note}
+              </p>
             )}
             <p className="text-base text-text-muted">
-              Catch us next time — here&apos;s the menu in the meantime.
+              Catch us next time — the menu&apos;s below for the craving.
             </p>
-          </div>
+          </>
         )}
 
-        {/* --- State 3: open ------------------------------------------------ */}
         {isPosted && isOpen && (
-          <div className="flex flex-col gap-4">
-            <h1 className="font-display text-3xl leading-none text-text-primary sm:text-4xl">
-              We&apos;re out today
+          <>
+            <h1 className="font-display text-5xl leading-[0.85] text-text-primary">
+              We&apos;re out
+              <br />
+              today!
             </h1>
-            <div className="flex items-start gap-2 text-lg text-text-primary">
+            <div className="flex items-start gap-2.5">
               <MapPin
                 className="mt-1 shrink-0 text-brand-primary"
-                size={20}
+                size={22}
+                strokeWidth={2.25}
                 aria-hidden
               />
-              <span>{location.address}</span>
+              <div>
+                <p className="text-xl font-medium leading-snug text-text-primary">
+                  {location.address}
+                </p>
+                {location.note && (
+                  <p className="mt-1 text-base leading-relaxed text-text-secondary">
+                    {location.note}
+                  </p>
+                )}
+              </div>
             </div>
-            {location.note && (
-              <p className="text-base text-text-secondary">{location.note}</p>
-            )}
             {hasCoords && (
               <CustomerMap
                 lat={location.lat as number}
@@ -108,16 +115,26 @@ export default async function Home() {
                 label={location.address}
               />
             )}
-          </div>
+          </>
         )}
       </section>
 
-      <section className="flex flex-col gap-5 border-t border-border-default pt-10">
-        <h2 className="font-display text-2xl leading-none text-text-primary">
-          The Menu
+      <HandDrawnDivider className="mx-auto h-4 w-40 text-clay-600" />
+
+      {/* The menu — same items the owner curates. */}
+      <section className="flex flex-col gap-7">
+        <h2 className="font-display text-3xl leading-none text-text-primary">
+          The menu
         </h2>
         <TodayMenu items={menuItems} />
       </section>
+
+      <footer className="flex flex-col items-center gap-3 pt-4 text-center">
+        <HandDrawnDivider className="h-3 w-20 text-sand-400" />
+        <p className="font-display text-2xl text-brand-primary">
+          See you out there
+        </p>
+      </footer>
 
       <LiveRefresh />
     </main>

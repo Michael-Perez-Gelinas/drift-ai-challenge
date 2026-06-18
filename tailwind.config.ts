@@ -97,6 +97,7 @@ const config: Config = {
         "2xl": ["32px", { lineHeight: "1.2" }],
         "3xl": ["48px", { lineHeight: "1.1" }],
         "4xl": ["64px", { lineHeight: "1.0" }],
+        "5xl": ["80px", { lineHeight: "0.9" }],
       },
       spacing: {
         1: "4px",
