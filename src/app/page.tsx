@@ -58,7 +58,7 @@ export default async function Home() {
         {!isPosted && (
           <>
             <h1 className="font-display text-4xl leading-[0.9] text-text-primary">
-              We&apos;re not out yet today
+              Not rolling yet today
             </h1>
             <p className="text-lg leading-relaxed text-text-secondary">
               Check back soon — we&apos;ll drop our spot here the moment
@@ -86,7 +86,7 @@ export default async function Home() {
         {isPosted && isOpen && (
           <>
             <h1 className="font-display text-2xl leading-[0.95] text-text-primary whitespace-nowrap">
-              We&apos;re out today!
+              We&apos;re rolling today!
             </h1>
             <div className="flex items-start gap-2.5">
               <MapPin
