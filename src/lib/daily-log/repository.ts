@@ -177,16 +177,18 @@ export async function getDay(db: DB, date: string): Promise<DayDetail | null> {
   if (error) throw error;
   if (!loc) return null;
 
-  const { data: perf } = await db
+  const { data: perf, error: perfError } = await db
     .from("daily_performance")
     .select("revenue_cents, customer_count, end_of_day_note")
     .eq("location_id", loc.id)
     .maybeSingle();
+  if (perfError) throw perfError;
 
-  const { data: items } = await db
+  const { data: items, error: itemsError } = await db
     .from("daily_item_stats")
     .select("menu_item_id, item_name, item_price, units_sold, was_sold_out")
     .eq("location_id", loc.id);
+  if (itemsError) throw itemsError;
 
   return {
     date: loc.date,
@@ -198,4 +200,98 @@ export async function getDay(db: DB, date: string): Promise<DayDetail | null> {
     end_of_day_note: perf?.end_of_day_note ?? null,
     items: items ?? [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Day open/closed status
+// ---------------------------------------------------------------------------
+
+/** Open or close a posted day. */
+export async function setDayOpen(
+  db: DB,
+  input: { date: string; isOpen: boolean }
+): Promise<void> {
+  const { error } = await db
+    .from("locations")
+    .update({ is_open: input.isOpen })
+    .eq("date", input.date);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Menu
+// ---------------------------------------------------------------------------
+
+export type MenuRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+  is_sold_out: boolean;
+  sort_order: number;
+  image_url: string | null;
+};
+
+/** Active (non-archived) menu, grouped-ready: ordered by category then sort_order. */
+export async function listActiveMenu(db: DB): Promise<MenuRow[]> {
+  const { data, error } = await db
+    .from("menu_items")
+    .select("id, name, description, price, category, is_sold_out, sort_order, image_url")
+    .eq("is_archived", false)
+    .order("category", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export type NewMenuItem = {
+  name: string;
+  description?: string | null;
+  price: number; // integer cents
+  category?: string | null;
+  image_url?: string | null;
+};
+
+/** Add a menu item. `price` is in integer cents. */
+export async function addMenuItem(db: DB, input: NewMenuItem): Promise<{ id: string }> {
+  const { data, error } = await db
+    .from("menu_items")
+    .insert({
+      name: input.name,
+      description: input.description ?? null,
+      price: input.price,
+      category: input.category ?? null,
+      image_url: input.image_url ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { id: data!.id };
+}
+
+export type MenuItemFields = {
+  name?: string;
+  description?: string | null;
+  price?: number;
+  category?: string | null;
+  image_url?: string | null;
+  is_sold_out?: boolean;
+  sort_order?: number;
+};
+
+/** Update fields on a menu item. `price`, when present, is in integer cents. */
+export async function updateMenuItem(
+  db: DB,
+  id: string,
+  fields: MenuItemFields
+): Promise<void> {
+  const { error } = await db.from("menu_items").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+/** Soft-delete: hide from active menus everywhere, preserve for history. */
+export async function archiveMenuItem(db: DB, id: string): Promise<void> {
+  const { error } = await db.from("menu_items").update({ is_archived: true }).eq("id", id);
+  if (error) throw error;
 }

@@ -9,6 +9,10 @@ import {
   postLocation,
   toggleSoldOut,
   wrapUpDay,
+  setDayOpen,
+  addMenuItem,
+  updateMenuItem,
+  archiveMenuItem,
 } from "@/lib/daily-log/repository";
 
 /** Gate every action. Redirects unauthenticated callers to /login. */
@@ -80,7 +84,7 @@ export async function postLocationAction(input: {
 export async function markClosedAction(): Promise<void> {
   await requireAuth();
   const db = createServiceClient();
-  await db.from("locations").update({ is_open: false }).eq("date", todayISO());
+  await setDayOpen(db, { date: todayISO(), isOpen: false });
   revalidatePath("/admin/today");
 }
 
@@ -88,7 +92,7 @@ export async function markClosedAction(): Promise<void> {
 export async function reopenAction(): Promise<void> {
   await requireAuth();
   const db = createServiceClient();
-  await db.from("locations").update({ is_open: true }).eq("date", todayISO());
+  await setDayOpen(db, { date: todayISO(), isOpen: true });
   revalidatePath("/admin/today");
 }
 
@@ -153,13 +157,7 @@ export async function addMenuItemAction(input: {
 }): Promise<void> {
   await requireAuth();
   const db = createServiceClient();
-  await db.from("menu_items").insert({
-    name: input.name,
-    description: input.description ?? null,
-    price: input.price,
-    category: input.category ?? null,
-    image_url: input.image_url ?? null,
-  });
+  await addMenuItem(db, input);
   revalidatePath("/admin/menu");
   revalidatePath("/admin/today");
 }
@@ -179,7 +177,7 @@ export async function updateMenuItemAction(
 ): Promise<void> {
   await requireAuth();
   const db = createServiceClient();
-  await db.from("menu_items").update(fields).eq("id", id);
+  await updateMenuItem(db, id, fields);
   revalidatePath("/admin/menu");
   revalidatePath("/admin/today");
 }
@@ -188,7 +186,7 @@ export async function updateMenuItemAction(
 export async function archiveMenuItemAction(id: string): Promise<void> {
   await requireAuth();
   const db = createServiceClient();
-  await db.from("menu_items").update({ is_archived: true }).eq("id", id);
+  await archiveMenuItem(db, id);
   revalidatePath("/admin/menu");
   revalidatePath("/admin/today");
 }

@@ -7,7 +7,15 @@ import {
   wrapUpDay,
   listDays,
   getDay,
+  setDayOpen,
+  listActiveMenu,
+  addMenuItem,
+  updateMenuItem,
+  archiveMenuItem,
 } from "@/lib/daily-log/repository";
+
+// Test menu items use this name prefix so cleanup can hard-delete only ours.
+const TEST_PREFIX = "__TEST__";
 
 // These tests run against whatever Supabase .env.local points at (hosted dev
 // project). To stay non-destructive on a shared database, every row we create
@@ -31,7 +39,10 @@ async function firstMenuItemId() {
 async function cleanupSentinels() {
   // Deleting the location cascades to daily_performance and daily_item_stats.
   await service.from("locations").delete().in("date", SENTINEL);
-  // Reset any sold-out flag our tests may have flipped.
+  // Hard-delete any test menu items we created (after locations, so cascaded
+  // stats are gone first). Only rows we own (TEST_PREFIX) are touched.
+  await service.from("menu_items").delete().like("name", `${TEST_PREFIX}%`);
+  // Reset any sold-out flag our tests may have flipped on the real seed items.
   await service.from("menu_items").update({ is_sold_out: false }).eq("is_sold_out", true);
 }
 
@@ -175,5 +186,94 @@ describe("RLS privacy (highest-risk)", () => {
     // Sanity: anon CAN still read public location data (verifies the GRANT fix).
     const anonLoc = await anon.from("locations").select("address").eq("date", DAY).single();
     expect(anonLoc.data!.address).toBe("South End");
+  });
+});
+
+describe("setDayOpen", () => {
+  it("closes and reopens a day without touching address/note", async () => {
+    await postLocation(service, { date: DAY, address: "South End", note: "by the fountain" });
+
+    await setDayOpen(service, { date: DAY, isOpen: false });
+    const closed = (await service.from("locations").select("address, note, is_open").eq("date", DAY).single()).data!;
+    expect(closed.is_open).toBe(false);
+    expect(closed.address).toBe("South End");
+    expect(closed.note).toBe("by the fountain");
+
+    await setDayOpen(service, { date: DAY, isOpen: true });
+    const reopened = (await service.from("locations").select("is_open").eq("date", DAY).single()).data!;
+    expect(reopened.is_open).toBe(true);
+  });
+});
+
+describe("menu CRUD", () => {
+  it("adds an item with price in cents and surfaces it in the active menu", async () => {
+    const { id } = await addMenuItem(service, {
+      name: `${TEST_PREFIX}Quesabirria`,
+      description: "Cheesy birria taco",
+      price: 650,
+      category: "Tacos",
+    });
+    const menu = await listActiveMenu(service);
+    const added = menu.find((m) => m.id === id);
+    expect(added).toBeTruthy();
+    expect(added!.price).toBe(650);
+    expect(added!.is_sold_out).toBe(false);
+  });
+
+  it("updates fields on an item", async () => {
+    const { id } = await addMenuItem(service, { name: `${TEST_PREFIX}Elote`, price: 400 });
+    await updateMenuItem(service, id, { price: 450, description: "now with cotija" });
+    const row = (await service.from("menu_items").select("price, description").eq("id", id).single()).data!;
+    expect(row.price).toBe(450);
+    expect(row.description).toBe("now with cotija");
+  });
+
+  it("archive hides an item from the active menu but keeps the row", async () => {
+    const { id } = await addMenuItem(service, { name: `${TEST_PREFIX}Churros`, price: 500 });
+    await archiveMenuItem(service, id);
+
+    const menu = await listActiveMenu(service);
+    expect(menu.find((m) => m.id === id)).toBeUndefined(); // hidden from active menu
+
+    const row = (await service.from("menu_items").select("is_archived").eq("id", id).single()).data!;
+    expect(row.is_archived).toBe(true); // soft-deleted, not gone
+  });
+
+  it("history snapshot survives archiving the item it references", async () => {
+    const { id } = await addMenuItem(service, { name: `${TEST_PREFIX}Tamale`, price: 350 });
+    await postLocation(service, { date: DAY, address: "South End", note: null });
+    await wrapUpDay(service, { date: DAY, perItemUnits: [{ menuItemId: id, units: 12 }] });
+    await archiveMenuItem(service, id);
+
+    // Day detail still shows the snapshot (name/price/units) even though archived.
+    const detail = await getDay(service, DAY);
+    const snap = detail!.items.find((i) => i.menu_item_id === id);
+    expect(snap).toBeTruthy();
+    expect(snap!.item_name).toBe(`${TEST_PREFIX}Tamale`);
+    expect(snap!.item_price).toBe(350);
+    expect(snap!.units_sold).toBe(12);
+  });
+});
+
+describe("customer read path (anon)", () => {
+  it("anon sees today's location and only the active menu", async () => {
+    await postLocation(service, { date: DAY, address: "Seaport", note: "till 3" });
+    const { id: archivedId } = await addMenuItem(service, { name: `${TEST_PREFIX}Hidden`, price: 100 });
+    await archiveMenuItem(service, archivedId);
+
+    const anon = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    // Location read (the bug we fixed: anon must see the posted location).
+    const loc = await anon.from("locations").select("address, note, is_open").eq("date", DAY).maybeSingle();
+    expect(loc.data?.address).toBe("Seaport");
+    expect(loc.data?.is_open).toBe(true);
+
+    // Active menu via anon — archived item must NOT appear.
+    const menu = await listActiveMenu(anon);
+    expect(menu.find((m) => m.id === archivedId)).toBeUndefined();
+    expect(menu.length).toBeGreaterThan(0);
   });
 });
