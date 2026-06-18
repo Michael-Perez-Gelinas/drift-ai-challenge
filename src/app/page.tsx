@@ -85,8 +85,8 @@ export default async function Home() {
 
         {isPosted && isOpen && (
           <>
-            <h1 className="font-display text-4xl leading-[0.95] text-text-primary">
-              Out today!
+            <h1 className="font-display text-2xl leading-[0.95] text-text-primary whitespace-nowrap">
+              We&apos;re out today!
             </h1>
             <div className="flex items-start gap-2.5">
               <MapPin
