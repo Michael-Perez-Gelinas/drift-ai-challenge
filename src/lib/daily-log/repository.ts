@@ -63,33 +63,64 @@ export async function postLocation(
   return { id: data!.id };
 }
 
-/** Set the live sold-out flag and mirror a snapshot into today's stats. */
+/**
+ * Write a per-(day, item) stat. The item_name/item_price snapshot is written
+ * exactly ONCE — on the first stat for that day+item — and never overwritten,
+ * so history keeps the name/price in effect that day even if the menu item is
+ * later renamed, repriced, or archived. Each call updates only the column(s)
+ * in `patch`, so toggling sold-out and logging units never clobber each other.
+ */
+async function writeItemStat(
+  db: DB,
+  locationId: string,
+  itemId: string,
+  patch: { was_sold_out?: boolean; units_sold?: number | null }
+): Promise<void> {
+  // Update only the patched column(s) on an existing row — leaves the snapshot
+  // and the other data column untouched.
+  const { data: updated, error: updateError } = await db
+    .from("daily_item_stats")
+    .update(patch)
+    .eq("location_id", locationId)
+    .eq("menu_item_id", itemId)
+    .select("id");
+  if (updateError) throw updateError;
+  if (updated && updated.length > 0) return;
+
+  // First stat for this day+item: snapshot the item's current name/price now.
+  const { data: item, error: itemError } = await db
+    .from("menu_items")
+    .select("name, price")
+    .eq("id", itemId)
+    .single();
+  if (itemError) throw itemError;
+
+  const { error: insertError } = await db.from("daily_item_stats").insert({
+    location_id: locationId,
+    menu_item_id: itemId,
+    item_name: item!.name,
+    item_price: item!.price,
+    was_sold_out: patch.was_sold_out ?? false,
+    units_sold: patch.units_sold ?? null,
+  });
+  if (insertError) throw insertError;
+}
+
+/** Set the live sold-out flag and mirror it into today's per-item stat. */
 export async function toggleSoldOut(
   db: DB,
   input: { itemId: string; soldOut: boolean; today: string }
 ): Promise<void> {
-  const { data: item, error: itemError } = await db
+  const { error: itemError } = await db
     .from("menu_items")
     .update({ is_sold_out: input.soldOut })
-    .eq("id", input.itemId)
-    .select("name, price")
-    .single();
+    .eq("id", input.itemId);
   if (itemError) throw itemError;
 
   const locationId = await locationIdForDate(db, input.today);
   if (locationId === null) return; // no posted day yet — nothing to log against
 
-  const { error } = await db.from("daily_item_stats").upsert(
-    {
-      location_id: locationId,
-      menu_item_id: input.itemId,
-      item_name: item!.name,
-      item_price: item!.price,
-      was_sold_out: input.soldOut,
-    },
-    { onConflict: "location_id,menu_item_id" }
-  );
-  if (error) throw error;
+  await writeItemStat(db, locationId, input.itemId, { was_sold_out: input.soldOut });
 }
 
 /** Record end-of-day performance and per-item units. Idempotent per date. */
@@ -100,12 +131,14 @@ export async function wrapUpDay(
     revenueCents?: number | null;
     customerCount?: number | null;
     endOfDayNote?: string | null;
-    perItemUnits?: { menuItemId: string; units: number }[];
+    // units may be null to explicitly CLEAR a previously-logged count.
+    perItemUnits?: { menuItemId: string; units: number | null }[];
   }
 ): Promise<void> {
   const locationId = await locationIdForDate(db, input.date);
   if (locationId === null) throw new Error(`No posted location for ${input.date}`);
 
+  // Full-replace of the day's performance row (callers prefill all fields).
   const { error: perfError } = await db.from("daily_performance").upsert(
     {
       location_id: locationId,
@@ -119,24 +152,7 @@ export async function wrapUpDay(
   if (perfError) throw perfError;
 
   for (const entry of input.perItemUnits ?? []) {
-    const { data: item, error: itemError } = await db
-      .from("menu_items")
-      .select("name, price")
-      .eq("id", entry.menuItemId)
-      .single();
-    if (itemError) throw itemError;
-
-    const { error } = await db.from("daily_item_stats").upsert(
-      {
-        location_id: locationId,
-        menu_item_id: entry.menuItemId,
-        item_name: item!.name,
-        item_price: item!.price,
-        units_sold: entry.units,
-      },
-      { onConflict: "location_id,menu_item_id" }
-    );
-    if (error) throw error;
+    await writeItemStat(db, locationId, entry.menuItemId, { units_sold: entry.units });
   }
 }
 

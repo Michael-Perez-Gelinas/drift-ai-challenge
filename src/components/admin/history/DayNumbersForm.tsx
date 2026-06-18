@@ -91,11 +91,12 @@ export function DayNumbersForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const perItemUnits = editableItems
-      .map((item) => ({ menuItemId: item.menu_item_id as string, units: toCount(units[item.menu_item_id as string] ?? "") }))
-      .filter(
-        (entry): entry is { menuItemId: string; units: number } => entry.units !== null
-      );
+    // Send every editable item with its current value — a blank field sends
+    // null to explicitly CLEAR a previously-logged count (not leave it stale).
+    const perItemUnits = editableItems.map((item) => ({
+      menuItemId: item.menu_item_id as string,
+      units: toCount(units[item.menu_item_id as string] ?? ""),
+    }));
 
     startTransition(async () => {
       await updateDayAction(date, {

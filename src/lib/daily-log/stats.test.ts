@@ -25,8 +25,9 @@ describe("topSeller", () => {
 });
 
 describe("formatRevenue", () => {
-  it("formats cents as dollars", () => {
-    expect(formatRevenue(124000)).toBe("$1,240");
+  it("formats cents as dollars, keeping cents", () => {
+    expect(formatRevenue(124000)).toBe("$1,240.00");
+    expect(formatRevenue(12499)).toBe("$124.99");
   });
 
   it("returns a placeholder for null", () => {

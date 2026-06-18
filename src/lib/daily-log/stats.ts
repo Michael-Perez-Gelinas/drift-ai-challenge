@@ -9,8 +9,11 @@ export function topSeller<T extends ItemUnits>(items: T[]): T | null {
   );
 }
 
-/** Whole-dollar revenue string from cents; em dash when not logged. */
+/** Dollar revenue string from cents (keeps cents); em dash when not logged. */
 export function formatRevenue(cents: number | null): string {
   if (cents === null) return "—";
-  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }

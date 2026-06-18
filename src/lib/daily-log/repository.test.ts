@@ -277,3 +277,45 @@ describe("customer read path (anon)", () => {
     expect(menu.length).toBeGreaterThan(0);
   });
 });
+
+describe("per-item stat integrity (regressions)", () => {
+  it("snapshot keeps the day's price even after the menu is repriced (C1)", async () => {
+    const { id } = await addMenuItem(service, { name: `${TEST_PREFIX}Birria`, price: 500 });
+    await postLocation(service, { date: DAY, address: "South End", note: null });
+
+    await toggleSoldOut(service, { itemId: id, soldOut: true, today: DAY }); // snapshots price 500
+    await updateMenuItem(service, id, { price: 700 }); // owner reprices later
+    await wrapUpDay(service, { date: DAY, perItemUnits: [{ menuItemId: id, units: 20 }] });
+
+    const detail = await getDay(service, DAY);
+    const snap = detail!.items.find((i) => i.menu_item_id === id)!;
+    expect(snap.item_price).toBe(500); // the day's price, NOT the later 700
+    expect(snap.was_sold_out).toBe(true); // preserved across the units write
+    expect(snap.units_sold).toBe(20); // both columns coexist, no clobber
+  });
+
+  it("logging units first, then selling out, keeps both columns (reverse order)", async () => {
+    const { id } = await addMenuItem(service, { name: `${TEST_PREFIX}Elote2`, price: 350 });
+    await postLocation(service, { date: DAY, address: "South End", note: null });
+
+    await wrapUpDay(service, { date: DAY, perItemUnits: [{ menuItemId: id, units: 8 }] });
+    await toggleSoldOut(service, { itemId: id, soldOut: true, today: DAY });
+
+    const snap = (await getDay(service, DAY))!.items.find((i) => i.menu_item_id === id)!;
+    expect(snap.units_sold).toBe(8);
+    expect(snap.was_sold_out).toBe(true);
+  });
+
+  it("stores an explicit 0, and can clear units back to null (C2)", async () => {
+    const { id } = await addMenuItem(service, { name: `${TEST_PREFIX}Churro2`, price: 400 });
+    await postLocation(service, { date: DAY, address: "South End", note: null });
+
+    await wrapUpDay(service, { date: DAY, perItemUnits: [{ menuItemId: id, units: 0 }] });
+    let snap = (await getDay(service, DAY))!.items.find((i) => i.menu_item_id === id)!;
+    expect(snap.units_sold).toBe(0); // explicit zero is stored, not dropped
+
+    await wrapUpDay(service, { date: DAY, perItemUnits: [{ menuItemId: id, units: null }] });
+    snap = (await getDay(service, DAY))!.items.find((i) => i.menu_item_id === id)!;
+    expect(snap.units_sold).toBeNull(); // cleared, not left stale
+  });
+});

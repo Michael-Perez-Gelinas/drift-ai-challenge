@@ -119,7 +119,8 @@ type WrapUpInput = {
   revenueCents?: number | null;
   customerCount?: number | null;
   endOfDayNote?: string | null;
-  perItemUnits?: { menuItemId: string; units: number }[];
+  // units may be null to explicitly clear a previously-logged count.
+  perItemUnits?: { menuItemId: string; units: number | null }[];
 };
 
 /** Record today's end-of-day performance. */
