@@ -115,7 +115,7 @@ export async function toggleSoldOutAction(
 // End-of-day wrap-up
 // ---------------------------------------------------------------------------
 
-type WrapUpInput = {
+export type WrapUpInput = {
   revenueCents?: number | null;
   customerCount?: number | null;
   endOfDayNote?: string | null;
@@ -128,6 +128,16 @@ export async function wrapUpDayAction(input: WrapUpInput): Promise<void> {
   await requireAuth();
   const db = createServiceClient();
   await wrapUpDay(db, { date: todayISO(), ...input });
+  revalidatePath("/admin/today");
+  revalidatePath("/admin/history");
+}
+
+/** Wrap up today's numbers AND mark the truck closed in one step. */
+export async function closeDayAction(input: WrapUpInput): Promise<void> {
+  await requireAuth();
+  const db = createServiceClient();
+  await wrapUpDay(db, { date: todayISO(), ...input });
+  await setDayOpen(db, { date: todayISO(), isOpen: false });
   revalidatePath("/admin/today");
   revalidatePath("/admin/history");
 }
