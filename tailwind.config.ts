@@ -84,9 +84,9 @@ const config: Config = {
         "admin-nav-active": "#C46B42",
       },
       fontFamily: {
-        display: ["Caveat", "cursive"],
-        body: ["DM Sans", "sans-serif"],
-        sans: ["DM Sans", "sans-serif"],
+        display: ["var(--font-display)", "cursive"],
+        body: ["var(--font-body)", "sans-serif"],
+        sans: ["var(--font-body)", "sans-serif"],
       },
       fontSize: {
         xs:   ["12px", { lineHeight: "1.5" }],
